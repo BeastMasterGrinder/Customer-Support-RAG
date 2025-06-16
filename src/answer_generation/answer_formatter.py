@@ -41,14 +41,43 @@ class AnswerFormatter:
         return " | ".join(parts)
     
     @staticmethod
+    def _format_version_info(generated_answer: GeneratedAnswer) -> List[str]:
+        """Format version-specific information and warnings."""
+        info_parts = []
+        
+        if generated_answer.version_info:
+            # Add version context
+            if generated_answer.is_version_specific:
+                info_parts.append(f"📌 **Version Context**: Information specific to version {generated_answer.version_info.current_version}")
+                
+                if not generated_answer.version_info.is_latest:
+                    info_parts.append(f"⚠️ **Version Notice**: You are using version {generated_answer.version_info.current_version}. "
+                                    f"The latest version is {generated_answer.version_info.available_versions[-1]}.")
+                    
+                    if generated_answer.version_info.next_version:
+                        info_parts.append(f"💡 **Upgrade Available**: Version {generated_answer.version_info.next_version} is available.")
+                        
+                        if generated_answer.version_info.migration_info:
+                            info_parts.append("\n**Migration Guide:**")
+                            info_parts.append(generated_answer.version_info.migration_info)
+            
+            # Add version differences warning if applicable
+            elif generated_answer.has_outdated_info:
+                versions = ", ".join(generated_answer.outdated_versions)
+                info_parts.append(f"⚠️ **Version Differences**: This answer contains information from multiple versions: {versions}")
+        
+        return info_parts
+    
+    @staticmethod
     def format_answer(generated_answer: GeneratedAnswer) -> str:
         """Format the complete answer with citations and warnings."""
         parts = []
         
-        # Add version warning if applicable
-        if generated_answer.has_outdated_info:
-            versions = ", ".join(generated_answer.outdated_versions)
-            parts.append(f"⚠️ **Version Differences Detected**: This answer contains information from multiple versions: {versions}\n")
+        # Add version information
+        version_info = AnswerFormatter._format_version_info(generated_answer)
+        if version_info:
+            parts.extend(version_info)
+            parts.append("")  # Add blank line after version info
         
         # Add conflicting information warning if applicable
         if generated_answer.has_conflicting_info:

@@ -15,23 +15,54 @@ logger = logging.getLogger(__name__)
 
 def test_smart_retrieval(retrieval: SmartRetrieval, answer_gen: AnswerGenerator, formatter: AnswerFormatter):
     """Test the smart retrieval system with various queries."""
-    test_queries = [
-        "How do I login to the system?",
-        "Why isn't my data syncing?",
-        "Latest authentication issues",
-        "Files not syncing properly",
-        "Can't sign in with correct password"
+    test_cases = [
+        # Basic queries
+        {
+            "query": "How do I login to the system?",
+            "user_version": None
+        },
+        {
+            "query": "Why isn't my data syncing?",
+            "user_version": None
+        },
+        # Version-specific queries
+        {
+            "query": "How to use the new dashboard in version 2.1?",
+            "user_version": "2.0"  # User asking about features in a newer version
+        },
+        {
+            "query": "Configure authentication settings",
+            "user_version": "1.5"  # User on older version
+        },
+        {
+            "query": "How to enable real-time sync in v2.0?",
+            "user_version": None  # Version mentioned in query
+        },
+        # Migration scenarios
+        {
+            "query": "What's new in version 2.1?",
+            "user_version": "2.0"
+        },
+        {
+            "query": "How to migrate from v1.5 to v2.0?",
+            "user_version": None
+        }
     ]
     
     logger.info("Testing smart retrieval and answer generation system...")
-    for query in test_queries:
+    for test_case in test_cases:
+        query = test_case["query"]
+        user_version = test_case["user_version"]
+        
         logger.info(f"\nQuery: {query}")
+        if user_version:
+            logger.info(f"User Version: {user_version}")
         
         # Get relevant documents
         retrieved_docs = retrieval.search(query)
         
         # Generate and format answer
-        generated_answer = answer_gen.generate_answer(query, retrieved_docs)
+        generated_answer = answer_gen.generate_answer(query, retrieved_docs, user_version)
         formatted_answer = formatter.format_answer(generated_answer)
         
         logger.info("Generated Answer:")
