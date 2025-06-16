@@ -54,7 +54,7 @@ def test_smart_retrieval(retrieval: SmartRetrieval, answer_gen: AnswerGenerator,
         query = test_case["query"]
         user_version = test_case["user_version"]
         
-        logger.info(f"\nQuery: {query}")
+        logger.info(f"\nQuery from human: {query}")
         if user_version:
             logger.info(f"User Version: {user_version}")
         
