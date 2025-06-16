@@ -1,0 +1,261 @@
+# Understanding and Implementing a RAG System for CloudSync Customer Support
+
+To use  scikit-learn, sentence-transformers, openai/gemini embeddings and LLMs, langchain, chromadb
+
+## 1. RAG System Concept
+
+Retrieval-Augmented Generation (RAG) combines information retrieval with text generation to create responses that are:
+- Grounded in factual information 
+- Up-to-date with the latest data
+- More accurate and less prone to hallucinations
+
+The process works in three main steps:
+1. **Retrieval**: Find relevant documents/information from a knowledge base
+2. **Augmentation**: Provide retrieved information as context
+3. **Generation**: Use LLM to create a response incorporating the retrieved context
+
+## 2. Data Analysis
+
+Our knowledge base consists of:
+- `product_docs.json`: 7 official product documentation articles covering setup, troubleshooting, billing, features, mobile app, security, and API
+- `support_tickets.json`: 8 historical support tickets showing resolution paths for common issues
+- `test_queries.json`: 12 test queries with expected sources and evaluation criteria
+
+These data sources provide complementary information - official documentation explains features and procedures, while support tickets show real-world troubleshooting scenarios.
+
+## 3. Implementation Architecture
+
+### 3.1. Environment Setup
+
+```python
+# Install required packages
+# pip install langchain-google-genai langchain-core langchain-text-splitters
+
+import os
+import json
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_chroma import Chroma
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
+from langchain.schema.runnable import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+from langchain import hub
+
+# Set up API key for Google Gemini you can ge the api key from .env file with the key GOOGLE_API_KEY
+os.environ["GOOGLE_API_KEY"] = "YOUR_API_KEY_HERE"
+
+# Initialize LLM
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
+
+# Initialize embeddings
+embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+```
+
+### 3.2. Data Loading and Processing
+
+```python
+# Function to load JSON data files
+def load_json_data():
+    # Load product documentation
+    with open("data/product_docs.json", "r") as f:
+        product_docs = json.load(f)["product_docs"]
+    
+    # Load support tickets
+    with open("data/support_tickets.json", "r") as f:
+        support_tickets = json.load(f)["support_tickets"]
+    
+    return product_docs, support_tickets
+
+# Convert JSON data to Documents
+def convert_to_documents(product_docs, support_tickets):
+    documents = []
+    
+    # Process product docs
+    for doc in product_docs:
+        documents.append(
+            Document(
+                page_content=doc["content"],
+                metadata={
+                    "source": "product_doc",
+                    "id": doc["id"],
+                    "title": doc["title"],
+                    "type": doc["type"],
+                    "version": doc["version"],
+                    "tags": doc["tags"]
+                }
+            )
+        )
+    
+    # Process support tickets
+    for ticket in support_tickets:
+        documents.append(
+            Document(
+                page_content=ticket["content"],
+                metadata={
+                    "source": "support_ticket",
+                    "id": ticket["id"],
+                    "title": ticket["title"],
+                    "status": ticket["status"],
+                    "category": ticket["category"],
+                    "tags": ticket["tags"]
+                }
+            )
+        )
+    
+    return documents
+```
+
+### 3.3. Document Splitting and Indexing
+
+```python
+# Split documents into smaller chunks for better retrieval
+def split_and_index_documents(documents):
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splits = text_splitter.split_documents(documents)
+    
+    from langchain_chroma import Chroma
+
+    vector_store = Chroma(
+        collection_name="my_collection",
+        embedding_function=embeddings,
+        persist_directory="./chroma_langchain_db",  # Where to save data locally, remove if not necessary
+    )
+    
+    return vector_store
+```
+
+### 3.4. Building the RAG Chain
+
+```python
+# Create a retriever
+def setup_retriever(vector_store):
+    retriever = vector_store.as_retriever(search_kwargs={"k": 4})
+    return retriever
+
+# Format documents for context
+def format_docs(docs):
+    return "\n\n".join(f"Source: {doc.metadata['source']} - {doc.metadata['title']}\n{doc.page_content}" for doc in docs)
+
+# Build the RAG chain
+def build_rag_chain(retriever):
+    # Get prompt from LangChain Hub
+    prompt = hub.pull("rlm/rag-prompt")
+    
+    # Define the RAG chain
+    rag_chain = (
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+    
+    return rag_chain
+```
+
+## 4. Query Analysis and Response Generation
+
+To enhance retrieval effectiveness, we can implement query analysis to:
+- Categorize the query type (factual, troubleshooting, billing, etc.)
+- Determine which data sources are most relevant (product docs vs support tickets)
+- Extract key search terms for better semantic matching
+
+```python
+def analyze_query(query, llm):
+    """Analyze the query to determine type and relevant search parameters"""
+    prompt_template = """
+    Analyze this customer support query and classify it:
+    Query: {query}
+    
+    1. Query type (select one): factual_information, troubleshooting, billing_issue, feature_usage, technical_issue, security, comparison
+    2. Relevant sections (select all that apply): setup, troubleshooting, billing, features, mobile, security, api
+    3. Is this likely to be a common issue found in support tickets? (yes/no)
+    4. Key search terms (max 5):
+    
+    Format your response as a JSON object with fields: query_type, relevant_sections, check_tickets, search_terms
+    """
+    
+    prompt = prompt_template.format(query=query)
+    response = llm.invoke(prompt)
+    # Parse the response to extract JSON
+    # This would require additional parsing logic
+    
+    return response
+
+def enhanced_retrieval(query, vector_store, llm):
+    """Use query analysis to enhance retrieval"""
+    analysis = analyze_query(query, llm)
+    
+    # Select appropriate retriever based on analysis
+    if analysis['check_tickets']:
+        # Include both product docs and support tickets, but prioritize tickets
+        retriever = vector_store.as_retriever(
+            search_kwargs={
+                "k": 4,
+                "filter": lambda doc: True  # No filtering, take all sources
+            }
+        )
+    else:
+        # Focus on product documentation
+        retriever = vector_store.as_retriever(
+            search_kwargs={
+                "k": 3,
+                "filter": lambda doc: doc.metadata["source"] == "product_doc"
+            }
+        )
+    
+    return retriever.get_relevant_documents(query)
+```
+
+## 5. System Integration
+
+```python
+def main():
+    # Load data
+    product_docs, support_tickets = load_json_data()
+    documents = convert_to_documents(product_docs, support_tickets)
+    
+    # Split and index documents
+    vector_store = split_and_index_documents(documents)
+    
+    # Create retriever
+    retriever = setup_retriever(vector_store)
+    
+    # Build RAG chain
+    rag_chain = build_rag_chain(retriever)
+    
+    # Example query
+    query = "How do I share folders with other people?"
+    response = rag_chain.invoke(query)
+    
+    print(f"Query: {query}")
+    print(f"Response: {response}")
+
+if __name__ == "__main__":
+    main()
+```
+
+## 6. Advanced Features and Improvements
+
+### 6.1. Source Citations
+Enhance responses with source citations to help support agents verify information.
+
+### 6.2. Multi-stage Retrieval
+Implement multi-stage retrieval for complex queries:
+1. Initial query to identify relevant documents
+2. Re-ranking of results based on relevance
+3. Focused retrieval for specific details
+
+### 6.3. Conversation Memory
+Add conversation history to handle follow-up questions.
+
+### 6.4. Evaluation Pipeline
+Use the test queries in `test_queries.json` to evaluate system performance against expected source retrieval and answer content.
+
+## 7. Key Benefits for CloudSync Support
+
+This RAG system will help CloudSync support agents by:
+1. Reducing response time by quickly retrieving relevant information
+2. Increasing accuracy by grounding responses in official documentation
+3. Providing consistent answers across different support agents
+4. Learning from past support tickets to recommend proven solutions
+5. Identifying common issue patterns to improve product documentation

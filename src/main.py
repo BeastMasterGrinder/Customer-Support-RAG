@@ -32,6 +32,8 @@ def main():
         embedding_manager = EmbeddingManager()
         
         logger.info("Adding documents to vector store")
+        # print("Split documents: ", split_documents)
+        # print("Type of split documents: ", type(split_documents))
         embedding_manager.add_documents(split_documents)
         
         # 4. Get and log collection statistics
