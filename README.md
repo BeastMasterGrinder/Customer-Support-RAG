@@ -89,3 +89,18 @@ Test Queries with their scores
 
 
 As we can see that the relevant ticket is being found and a scroe is given to it according to thresholds we set in `retrieval_config.py`
+
+
+Step 3:
+Proper citations with Document titles and IDS
+Specific sections when applicable and confidence indicators + handling edge cases
+
+![image](https://github.com/user-attachments/assets/98949119-79b1-45d9-8e32-cc43aad3dd84)
+
+![image](https://github.com/user-attachments/assets/a6b93986-cb12-4b3e-970a-02f1b0d49557)
+
+![image](https://github.com/user-attachments/assets/0ad7151c-1ecd-4536-bd9d-b638e3e613d8)
+
+
+Edge cases
+![image](https://github.com/user-attachments/assets/6e6ea44a-531b-4280-9daa-c46f1a9d4c95)
