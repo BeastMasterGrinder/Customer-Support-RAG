@@ -2,3 +2,4 @@ myenv/
 data/
 .env
 __pycache__/
+chroma_langchain_db/
