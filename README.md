@@ -54,6 +54,12 @@ Create a `.env` file in the project root with:
 GOOGLE_API_KEY=your_api_key_here
 ```
 
+if this does not work try to run 
+
+```bash
+export GOOGLE_API_KEY='your-actual-api-key'
+```
+
 ## Running the System
 
 To process documents and create the vector store:
@@ -104,3 +110,10 @@ Specific sections when applicable and confidence indicators + handling edge case
 
 Edge cases
 ![image](https://github.com/user-attachments/assets/6e6ea44a-531b-4280-9daa-c46f1a9d4c95)
+
+# Chanllenge A. Version Aware
+
+![image](https://github.com/user-attachments/assets/96f08d8b-262e-4ff2-98c3-c8454d1cb50d)
+
+![image](https://github.com/user-attachments/assets/8d6f94a2-be4d-4c40-962f-5b6c31928403)
+
