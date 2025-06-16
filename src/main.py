@@ -4,6 +4,7 @@ from data_processing.document_loader import CloudSyncDocumentLoader
 from data_processing.intelligent_splitter import IntelligentSplitter
 from embeddings.embedding_manager import EmbeddingManager
 from embeddings.smart_retrieval import SmartRetrieval
+from answer_generation import AnswerGenerator, AnswerFormatter
 
 # Set up logging
 logging.basicConfig(
@@ -12,7 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def test_smart_retrieval(retrieval: SmartRetrieval):
+def test_smart_retrieval(retrieval: SmartRetrieval, answer_gen: AnswerGenerator, formatter: AnswerFormatter):
     """Test the smart retrieval system with various queries."""
     test_queries = [
         "How do I login to the system?",
@@ -22,17 +23,20 @@ def test_smart_retrieval(retrieval: SmartRetrieval):
         "Can't sign in with correct password"
     ]
     
-    logger.info("Testing smart retrieval system...")
+    logger.info("Testing smart retrieval and answer generation system...")
     for query in test_queries:
         logger.info(f"\nQuery: {query}")
-        results = retrieval.search(query)
         
-        for doc, score in results:
-            logger.info(f"Score: {score:.3f}")
-            logger.info(f"Title: {doc.metadata.get('title', 'N/A')}")
-            logger.info(f"Type: {doc.metadata.get('source', 'N/A')}")
-            logger.info(f"Content preview: {doc.page_content[:100]}...")
-            logger.info("-" * 80)
+        # Get relevant documents
+        retrieved_docs = retrieval.search(query)
+        
+        # Generate and format answer
+        generated_answer = answer_gen.generate_answer(query, retrieved_docs)
+        formatted_answer = formatter.format_answer(generated_answer)
+        
+        logger.info("Generated Answer:")
+        logger.info(formatted_answer)
+        logger.info("-" * 80)
 
 def main():
     try:
@@ -61,10 +65,15 @@ def main():
         logger.info("Initializing smart retrieval system")
         smart_retrieval = SmartRetrieval(embedding_manager)
         
-        # 5. Test the retrieval system
-        test_smart_retrieval(smart_retrieval)
+        # 5. Initialize answer generation components
+        logger.info("Initializing answer generation system")
+        answer_generator = AnswerGenerator()
+        answer_formatter = AnswerFormatter()
         
-        # 6. Get and log collection statistics
+        # 6. Test the complete system
+        test_smart_retrieval(smart_retrieval, answer_generator, answer_formatter)
+        
+        # 7. Get and log collection statistics
         stats = embedding_manager.get_collection_stats()
         logger.info(f"Vector store statistics: {stats}")
         
