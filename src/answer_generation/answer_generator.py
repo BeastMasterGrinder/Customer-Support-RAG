@@ -56,6 +56,25 @@ class AnswerGenerator:
             return headers[0].lstrip('#').strip()
         return None
     
+    def _normalize_version(self, version: str) -> str:
+        """Normalize version string by removing 'v' prefix and ensuring proper format."""
+        if not version:
+            return ""
+        # Remove 'v' prefix if present
+        version = version.lower().strip()
+        if version.startswith('v'):
+            version = version[1:]
+        return version
+
+    def _version_to_tuple(self, version: str) -> tuple:
+        """Convert version string to tuple of integers for comparison."""
+        version = self._normalize_version(version)
+        # Split by dots and convert to integers, pad with zeros if needed
+        parts = version.split('.')
+        # Convert to integers and pad with zeros to ensure at least 3 components
+        parts = [int(p) for p in parts] + [0] * (3 - len(parts))
+        return tuple(parts[:3])  # Only use first 3 components
+
     def _extract_version_from_query(self, query: str) -> Optional[str]:
         """Extract version information from the query."""
         # Match common version patterns
@@ -68,8 +87,8 @@ class AnswerGenerator:
         for pattern in patterns:
             match = re.search(pattern, query, re.IGNORECASE)
             if match:
-                version = match.group().lower().replace('v', '').replace('version', '').strip()
-                return version
+                version = match.group().lower().replace('version', '').strip()
+                return self._normalize_version(version)
         return None
     
     def _get_version_info(self, docs: List[Tuple[Document, float]], query_version: Optional[str] = None) -> VersionInfo:
@@ -78,15 +97,17 @@ class AnswerGenerator:
         for doc, _ in docs:
             version = doc.metadata.get('version') or doc.metadata.get('user_version')
             if version:
-                versions.add(version)
+                versions.add(self._normalize_version(version))
         
         if not versions:
             return None
         
-        sorted_versions = sorted(versions, key=lambda v: [int(x) for x in v.split('.')])
+        # Sort versions using version tuples
+        sorted_versions = sorted(versions, key=self._version_to_tuple)
         latest_version = sorted_versions[-1]
         
         if query_version:
+            query_version = self._normalize_version(query_version)
             is_latest = query_version == latest_version
             next_version = None
             try:
@@ -111,10 +132,11 @@ class AnswerGenerator:
     
     def _filter_version_specific_docs(self, docs: List[Tuple[Document, float]], version: str) -> List[Tuple[Document, float]]:
         """Filter documents to match specific version."""
+        version = self._normalize_version(version)
         filtered_docs = []
         for doc, score in docs:
             doc_version = doc.metadata.get('version') or doc.metadata.get('user_version')
-            if doc_version == version:
+            if doc_version and self._normalize_version(doc_version) == version:
                 filtered_docs.append((doc, score * 1.2))  # Boost score for version-specific matches
         return filtered_docs if filtered_docs else docs  # Fall back to all docs if no version matches
     
